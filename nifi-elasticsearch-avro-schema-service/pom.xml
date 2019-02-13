@@ -80,6 +80,11 @@
             <version>${nifi.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.nifi</groupId>
+            <artifactId>nifi-elasticsearch-client-service-api</artifactId>
+            <version>1.8.0</version>
+        </dependency>
     </dependencies>
 
     <build>
