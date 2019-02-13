@@ -1,12 +1,16 @@
 package org.apache.nifi.elasticsearch;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.avro.Schema;
 import org.apache.nifi.annotation.lifecycle.OnEnabled;
+import org.apache.nifi.avro.AvroTypeUtil;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.components.Validator;
 import org.apache.nifi.controller.AbstractControllerService;
 import org.apache.nifi.controller.ConfigurationContext;
 import org.apache.nifi.expression.ExpressionLanguageScope;
+import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.schema.access.SchemaField;
 import org.apache.nifi.schema.access.SchemaNotFoundException;
@@ -15,9 +19,12 @@ import org.apache.nifi.serialization.record.RecordSchema;
 import org.apache.nifi.serialization.record.SchemaIdentifier;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class ElasticSearchAvroSchemaRegistry extends AbstractControllerService implements SchemaRegistry {
@@ -37,6 +44,7 @@ public class ElasticSearchAvroSchemaRegistry extends AbstractControllerService i
         .required(true)
         .addValidator(StandardValidators.NON_EMPTY_EL_VALIDATOR)
         .expressionLanguageSupported(ExpressionLanguageScope.VARIABLE_REGISTRY)
+        .defaultValue("avro_schemas")
         .build();
 
     public static final PropertyDescriptor TYPE = new PropertyDescriptor.Builder()
@@ -46,6 +54,7 @@ public class ElasticSearchAvroSchemaRegistry extends AbstractControllerService i
         .required(true)
         .addValidator(StandardValidators.NON_EMPTY_EL_VALIDATOR)
         .expressionLanguageSupported(ExpressionLanguageScope.VARIABLE_REGISTRY)
+        .defaultValue("schema")
         .build();
 
     public static final List<PropertyDescriptor> DESCRIPTORS = Collections.unmodifiableList(Arrays.asList(
@@ -69,9 +78,46 @@ public class ElasticSearchAvroSchemaRegistry extends AbstractControllerService i
         type  = context.getProperty(TYPE).evaluateAttributeExpressions().getValue();
     }
 
+    private String serializeQuery(String name, Integer version) throws IOException {
+        Map<String, Object> query = new HashMap<String, Object>(){{
+            put("bool", new HashMap<String, Object>(){{
+                put("must", new ArrayList<Map<String, Object>>(){{
+                    add(new HashMap<String, Object>(){{
+                        put("match", new HashMap<String, Object>(){{
+                            put("name", name);
+                        }});
+                    }});
+                    if (version != null) {
+                        add(new HashMap<String, Object>() {{
+                            put("match", new HashMap<String, Object>() {{
+                                put("version", version);
+                            }});
+                        }});
+                    }
+                }});
+            }});
+        }};
+
+        String serialized = MAPPER.writeValueAsString(query);
+        return serialized;
+    }
+
     @Override
     public RecordSchema retrieveSchema(SchemaIdentifier schemaIdentifier) throws IOException, SchemaNotFoundException {
-        return null;
+        Integer version = schemaIdentifier.getVersion().isPresent() ? schemaIdentifier.getVersion().getAsInt() : null;
+        String query = serializeQuery(schemaIdentifier.getName().get(), version);
+        SearchResponse response = clientService.search(query, index, type);
+
+        List<Map<String, Object>> hits = response.getHits();
+        if (hits == null || hits.size() != 1) {
+            throw new ProcessException(String.format("Schema not found; hit count was %d", hits != null ? hits.size() : 0));
+        }
+
+        String text = (String) hits.get(0).get("text");
+
+        Schema schema = new Schema.Parser().parse(text);
+
+        return AvroTypeUtil.createSchema(schema);
     }
 
     @Override
