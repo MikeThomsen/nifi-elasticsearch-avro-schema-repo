@@ -3,6 +3,7 @@ package org.apache.nifi
 import org.apache.nifi.elasticsearch.ElasticSearchAvroSchemaRegistry
 import org.apache.nifi.elasticsearch.ElasticSearchClientService
 import org.apache.nifi.elasticsearch.ElasticSearchClientServiceImpl
+import org.apache.nifi.serialization.record.StandardSchemaIdentifier
 import org.apache.nifi.util.TestRunner
 import org.apache.nifi.util.TestRunners
 import org.junit.Before
@@ -10,10 +11,11 @@ import org.junit.Test
 
 class ElasticSearchAvroSchemaRegistryIT {
     TestRunner runner
+    ElasticSearchAvroSchemaRegistry registry
 
     @Before
     void setup() {
-        def registry = new ElasticSearchAvroSchemaRegistry()
+        registry = new ElasticSearchAvroSchemaRegistry()
         def client = new ElasticSearchClientServiceImpl()
         runner = TestRunners.newTestRunner(MockProcessor.class)
         runner.addControllerService("registry", registry)
@@ -28,6 +30,6 @@ class ElasticSearchAvroSchemaRegistryIT {
 
     @Test
     void test() {
-
+        registry.retrieveSchema(new StandardSchemaIdentifier.Builder().name("test").build())
     }
 }

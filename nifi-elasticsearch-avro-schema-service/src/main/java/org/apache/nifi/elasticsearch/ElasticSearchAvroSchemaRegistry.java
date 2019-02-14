@@ -80,25 +80,38 @@ public class ElasticSearchAvroSchemaRegistry extends AbstractControllerService i
 
     private String serializeQuery(String name, Integer version) throws IOException {
         Map<String, Object> query = new HashMap<String, Object>(){{
-            put("bool", new HashMap<String, Object>(){{
-                put("must", new ArrayList<Map<String, Object>>(){{
-                    add(new HashMap<String, Object>(){{
-                        put("match", new HashMap<String, Object>(){{
-                            put("name", name);
-                        }});
+            put("size", 1);
+            put("sort", new ArrayList(){{
+                add(new HashMap<String, Object>(){{
+                    put("version", new HashMap<String, Object>(){{
+                        put("order", "desc");
                     }});
-                    if (version != null) {
-                        add(new HashMap<String, Object>() {{
-                            put("match", new HashMap<String, Object>() {{
-                                put("version", version);
+                }});
+            }});
+            put("query", new HashMap<String, Object>(){{
+                put("bool", new HashMap<String, Object>(){{
+                    put("must", new ArrayList<Map<String, Object>>(){{
+                        add(new HashMap<String, Object>(){{
+                            put("match", new HashMap<String, Object>(){{
+                                put("name", name);
                             }});
                         }});
-                    }
+                        if (version != null) {
+                            add(new HashMap<String, Object>() {{
+                                put("match", new HashMap<String, Object>() {{
+                                    put("version", version);
+                                }});
+                            }});
+                        }
+                    }});
                 }});
             }});
         }};
 
         String serialized = MAPPER.writeValueAsString(query);
+        if (getLogger().isDebugEnabled()) {
+            getLogger().debug(String.format("Built this query:\n%s", serialized));
+        }
         return serialized;
     }
 
@@ -113,7 +126,7 @@ public class ElasticSearchAvroSchemaRegistry extends AbstractControllerService i
             throw new ProcessException(String.format("Schema not found; hit count was %d", hits != null ? hits.size() : 0));
         }
 
-        String text = (String) hits.get(0).get("text");
+        String text = (String)((Map<String, Object>)hits.get(0).get("_source")).get("text");
 
         Schema schema = new Schema.Parser().parse(text);
 
