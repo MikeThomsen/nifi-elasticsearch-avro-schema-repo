@@ -1,6 +1,5 @@
 package org.apache.nifi.elasticsearch;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.avro.Schema;
 import org.apache.nifi.annotation.lifecycle.OnEnabled;
@@ -22,12 +21,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class ElasticSearchAvroSchemaRegistry extends AbstractControllerService implements SchemaRegistry {
+    private static final Set<SchemaField> schemaFields = EnumSet.of(SchemaField.SCHEMA_NAME, SchemaField.SCHEMA_TEXT, SchemaField.SCHEMA_TEXT_FORMAT);
+
     public static final PropertyDescriptor CLIENT_SERVICE = new PropertyDescriptor.Builder()
         .name("es-client-service")
         .displayName("Client Service")
@@ -135,6 +137,6 @@ public class ElasticSearchAvroSchemaRegistry extends AbstractControllerService i
 
     @Override
     public Set<SchemaField> getSuppliedSchemaFields() {
-        return null;
+        return schemaFields;
     }
 }
